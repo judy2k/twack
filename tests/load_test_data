@@ -1,0 +1,40 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from datetime import datetime, timezone
+from functools import partial
+from os.path import abspath, join as join_path, dirname
+import sys
+
+sys.path.insert(0, abspath(join_path(dirname(__file__), '..')))
+
+from twacklib import AppConfig
+from twacklib.db import TweetStore
+
+
+def dt(s):
+    return datetime.strptime(s, '%Y/%m/%d %H:%M:%S') \
+        .replace(tzinfo=timezone.utc)
+
+
+def main():
+    tweet_store = TweetStore(AppConfig().connection_params())
+    with tweet_store:
+        tweet_store.save_load(
+            123, [1, 2, 3], [200, 201, 202], dt('2014/01/01 09:00:00'))
+
+        # Lose follower 3 and drop friend 202 between 01 and 02:
+        tweet_store.save_load(
+            123, [1, 2], [200, 201], dt('2014/01/02 09:00:00'))
+
+        # Add follower 4 and befriend 203 between 02 and 03:
+        tweet_store.save_load(
+            123, [1, 2, 4], [200, 201, 203], dt('2014/01/03 09:00:00'))
+
+        # Followers: drop 4 and add 5;
+        # Friends: drop 203 and add 204 between 03 and 04:
+        tweet_store.save_load(
+            123, [1, 2, 5], [200, 201, 204], dt('2014/01/04 09:00:00'))
+
+if __name__ == '__main__':
+    main()
