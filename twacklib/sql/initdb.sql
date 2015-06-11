@@ -17,7 +17,7 @@ CREATE TABLE relationship_load (
   account_id BIGINT                   NOT NULL,
   followers  BIGINT []                NOT NULL,
   friends    BIGINT []                NOT NULL,
-  added_dt   TIMESTAMP WITH TIME ZONE NOT NULL,
+  added_dt   TIMESTAMP WITH TIME ZONE NOT NULL UNIQUE,
   CHECK (EXTRACT(TIMEZONE FROM added_dt) = '0')  -- ensure UTC
 );
 ALTER SEQUENCE relationship_load_id_seq OWNED BY relationship_load.id;
@@ -39,14 +39,13 @@ CREATE SEQUENCE relationship_event_id_seq;
 CREATE TABLE relationship_event (
   id             INTEGER PRIMARY KEY
     DEFAULT nextval('relationship_event_id_seq'),
-  subject_id     BIGINT                   NOT NULL REFERENCES twitter_account,
+  subject_id     BIGINT                   NOT NULL, -- REFERENCES twitter_account,
   verb           event_verb               NOT NULL,
-  object_id      BIGINT                   NOT NULL REFERENCES twitter_account,
+  object_id      BIGINT                   NOT NULL, -- REFERENCES twitter_account,
   event_start_dt TIMESTAMP WITH TIME ZONE NOT NULL,
   event_end_dt   TIMESTAMP WITH TIME ZONE NOT NULL,
   CHECK (EXTRACT(TIMEZONE FROM event_start_dt) = '0'), -- ensure UTC
   CHECK (EXTRACT(TIMEZONE FROM event_end_dt) = '0')    -- ensure UTC
-
 );
 
 -- Avoid duplicate events:
@@ -57,3 +56,4 @@ ALTER SEQUENCE relationship_event_id_seq OWNED BY relationship_event.id;
 
 -- Register that this schema is version 1:
 INSERT INTO versions (version_number) VALUES (1);
+

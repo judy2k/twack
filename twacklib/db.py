@@ -6,6 +6,7 @@ Data storage interface for the Twack application.
 """
 
 from __future__ import division, print_function, unicode_literals
+from collections import namedtuple
 
 from os.path import abspath, dirname, join as join_path
 
@@ -13,6 +14,16 @@ import psycopg2
 
 
 SQL_DIR = abspath(join_path(dirname(__file__), 'sql'))
+
+Load = namedtuple(
+    'Load', ['account_id', 'followers', 'friends', 'added_dt']
+)
+
+
+Event = namedtuple(
+    'Event',
+    ['subject_id', 'verb', 'object_id', 'event_start_dt', 'event_end_dt'],
+)
 
 
 def _load_sql(key):
@@ -132,3 +143,63 @@ class TweetStore(object):
                   AND
                   event_end_dt > %(load_dt)s""",
                 {'load_dt': load_dt})
+
+            # Get previous load:
+            cursor.execute(
+                """
+                SELECT account_id, followers, friends, r_data.added_dt
+                  FROM relationship_load r_data
+                  INNER JOIN (
+                    SELECT MAX(added_dt) added_dt
+                      FROM relationship_load
+                      WHERE added_dt < %s
+                  ) r_filter
+                  ON r_filter.added_dt = r_data.added_dt
+                """,
+                (load_dt,)
+            )
+            row = cursor.fetchone()
+            if row:
+                last_load = Load(*row)
+
+                # Create events between previous load and this one:
+                for event in events(
+                    twitter_id,
+                    last_load.added_dt,
+                    load_dt,
+                    set(last_load.friends),
+                    set(friends),
+                    set(last_load.followers),
+                    set(followers),
+                ):
+                    cursor.execute("""
+                        INSERT INTO relationship_event (
+                          subject_id, verb, object_id,
+                          event_start_dt, event_end_dt
+                        ) VALUES (
+                          %(subject_id)s, %(verb)s, %(object_id)s,
+                          %(event_start_dt)s, %(event_end_dt)s
+                        )
+                    """, event._asdict())
+
+
+def events(account_id, last_load_dt, this_load_dt, last_friends, this_friends,
+           last_followers, this_followers):
+    new_followers = this_followers - last_followers
+    lost_followers = last_followers - this_followers
+    new_friends = this_friends - last_friends
+    abandoned_friends = last_friends - this_friends
+    for new_follower in new_followers:
+        yield Event(
+            new_follower, 'follow', account_id, last_load_dt, this_load_dt)
+    for lost_follower in lost_followers:
+        yield Event(
+            lost_follower, 'unfollow', account_id,
+            last_load_dt, this_load_dt)
+    for new_friend in new_friends:
+        yield Event(
+            account_id, 'follow', new_friend, last_load_dt, this_load_dt)
+    for abandoned_friend in abandoned_friends:
+        yield Event(
+            account_id, 'unfollow', abandoned_friend,
+            last_load_dt, this_load_dt)

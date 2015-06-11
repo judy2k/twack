@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime, timezone
-from functools import partial
 from os.path import abspath, join as join_path, dirname
 import sys
 
