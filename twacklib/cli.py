@@ -29,7 +29,7 @@ def initdb():
 @click.argument('screen-name')
 def load(screen_name):
     """
-    Load and store a user's friends and followers from Twitter.
+    Load a user's Twitter friends and followers
     """
     init_app().load(screen_name)
 
