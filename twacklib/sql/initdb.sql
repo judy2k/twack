@@ -57,3 +57,118 @@ ALTER SEQUENCE relationship_event_id_seq OWNED BY relationship_event.id;
 -- Register that this schema is version 1:
 INSERT INTO versions (version_number) VALUES (1);
 
+CREATE OR REPLACE FUNCTION previous_relationship_load(TIMESTAMP WITH TIME ZONE)
+  RETURNS relationship_load
+AS $$
+SELECT r_data.*
+FROM relationship_load r_data
+  INNER JOIN (
+               SELECT MAX(added_dt) added_dt
+               FROM relationship_load
+               WHERE added_dt < $1
+             ) r_filter
+    ON r_filter.added_dt = r_data.added_dt;
+$$ LANGUAGE SQL;
+COMMENT ON FUNCTION previous_relationship_load(TIMESTAMP WITH TIME ZONE)
+IS 'Return the most recent load before the provided timestamp.';
+
+CREATE OR REPLACE FUNCTION create_events()
+  RETURNS VOID
+AS $$
+INSERT INTO relationship_event (
+  subject_id, verb, object_id, event_start_dt, event_end_dt
+)
+  SELECT
+    follower.id,
+    'unfollow' :: event_verb,
+    follower.ac_id,
+    (SELECT added_dt
+     FROM relationship_load rl
+     WHERE rl.id = 3),
+    (SELECT added_dt
+     FROM relationship_load rl
+     WHERE rl.id = 4)
+  FROM (
+         SELECT
+           unnest(rl1.followers) id,
+           rl1.account_id        ac_id
+         FROM relationship_load AS rl1
+         WHERE rl1.id = 3)
+    AS follower
+  WHERE id NOT IN (
+    SELECT unnest(rl2.followers)
+    FROM relationship_load rl2
+    WHERE rl2.id = 4)
+  UNION
+  SELECT
+    follower.id,
+    'follow' :: event_verb,
+    follower.ac_id,
+    (SELECT added_dt
+     FROM relationship_load rl
+     WHERE rl.id = 3),
+    (SELECT added_dt
+     FROM relationship_load rl
+     WHERE rl.id = 4)
+  FROM (
+         SELECT
+           unnest(rl1.followers) id,
+           rl1.account_id        ac_id,
+           rl1.added_dt          added_dt
+         FROM relationship_load AS rl1
+         WHERE rl1.id = 4
+       ) AS follower
+  WHERE id NOT IN (
+    SELECT unnest(rl2.followers)
+    FROM relationship_load rl2
+    WHERE rl2.id = 3
+  )
+  UNION
+  SELECT
+    ac_id,
+    'unfollow' :: event_verb,
+    friend.id,
+    (SELECT added_dt
+     FROM relationship_load rl
+     WHERE rl.id = 3),
+    (SELECT added_dt
+     FROM relationship_load rl
+     WHERE rl.id = 4)
+  FROM (
+         SELECT
+           unnest(rl.friends) id,
+           rl.account_id      ac_id,
+           rl.added_dt        added_dt
+         FROM relationship_load AS rl
+         WHERE rl.id = 3
+       ) AS friend
+  WHERE id NOT IN (
+    SELECT unnest(rl.friends)
+    FROM relationship_load rl
+    WHERE rl.id = 4
+  )
+  UNION
+  SELECT
+    ac_id,
+    'follow' :: event_verb,
+    friend.id,
+    (SELECT added_dt
+     FROM relationship_load rl
+     WHERE rl.id = 3),
+    (SELECT added_dt
+     FROM relationship_load rl
+     WHERE rl.id = 4)
+  FROM (
+         SELECT
+           unnest(rl.friends) id,
+           rl.account_id      ac_id,
+           rl.added_dt        added_dt
+         FROM relationship_load AS rl
+         WHERE rl.id = 4
+       ) AS friend
+  WHERE id NOT IN (
+    SELECT unnest(rl.friends)
+    FROM relationship_load rl
+    WHERE rl.id = 3
+  );
+$$ LANGUAGE SQL;

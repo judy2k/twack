@@ -16,7 +16,7 @@ import psycopg2
 SQL_DIR = abspath(join_path(dirname(__file__), 'sql'))
 
 Load = namedtuple(
-    'Load', ['account_id', 'followers', 'friends', 'added_dt']
+    'Load', ['load_id', 'account_id', 'followers', 'friends', 'added_dt']
 )
 
 
@@ -145,21 +145,10 @@ class TweetStore(object):
                 {'load_dt': load_dt})
 
             # Get previous load:
-            cursor.execute(
-                """
-                SELECT account_id, followers, friends, r_data.added_dt
-                  FROM relationship_load r_data
-                  INNER JOIN (
-                    SELECT MAX(added_dt) added_dt
-                      FROM relationship_load
-                      WHERE added_dt < %s
-                  ) r_filter
-                  ON r_filter.added_dt = r_data.added_dt
-                """,
-                (load_dt,)
-            )
+            cursor.callproc('previous_relationship_load', (load_dt,))
             row = cursor.fetchone()
-            if row:
+            if row[0]:
+                # print(row, type(row[0]))
                 last_load = Load(*row)
 
                 # Create events between previous load and this one:
@@ -167,10 +156,10 @@ class TweetStore(object):
                     twitter_id,
                     last_load.added_dt,
                     load_dt,
-                    set(last_load.friends),
-                    set(friends),
-                    set(last_load.followers),
-                    set(followers),
+                    last_load.friends,
+                    friends,
+                    last_load.followers,
+                    followers,
                 ):
                     cursor.execute("""
                         INSERT INTO relationship_event (
@@ -185,10 +174,26 @@ class TweetStore(object):
 
 def events(account_id, last_load_dt, this_load_dt, last_friends, this_friends,
            last_followers, this_followers):
-    new_followers = this_followers - last_followers
-    lost_followers = last_followers - this_followers
-    new_friends = this_friends - last_friends
-    abandoned_friends = last_friends - this_friends
+    """
+    Determine the differences between two friends and followers sets, and emit
+    `Event`s that account for follows and unfollows.
+
+    :param account_id: The account id for the account we're looking at.
+    :param last_load_dt: The datetime of the previous load
+    :param this_load_dt: The datetime of *this* load (usually most recent)
+    :param last_friends: seq of ids following `account_id` in last load.
+    :param this_friends: seq of ids following `account_id` in this load.
+    :param last_followers: seq of ids followed by `account_id` in last load.
+    :param this_followers: seq of ids followed by `account_id` in this load.
+    :return: Sequence of `Event`s describing differences in follows between
+        this load and the last.
+    """
+    # TODO: Too many params in this function. Two `Load` instances?
+
+    new_followers = set(this_followers) - set(last_followers)
+    lost_followers = set(last_followers) - set(this_followers)
+    new_friends = set(this_friends) - set(last_friends)
+    abandoned_friends = set(last_friends) - set(this_friends)
     for new_follower in new_followers:
         yield Event(
             new_follower, 'follow', account_id, last_load_dt, this_load_dt)
