@@ -10,8 +10,8 @@ soon.
 
 ## Installation
 
-Create a config file first, and store it in one of ``,``, or ``. It should look
-something like this:
+Create a config file first, and store it in one of `/etc/twack.conf`,
+`~/.twack.conf`, or `./twack.conf`. It should look something like this:
 
 ```ini
 [twitter]
