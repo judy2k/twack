@@ -5,9 +5,10 @@ from __future__ import division, print_function, unicode_literals
 
 import click
 
-from . import init_app
+from . import init_app, version
 
 @click.group()
+@click.version_option()
 def main():
     """
     Top-level command.

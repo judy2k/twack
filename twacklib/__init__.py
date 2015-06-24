@@ -25,7 +25,7 @@ import tweepy
 
 from .db import TweetStore
 
-
+version = "0.0.0"
 DEFAULT_DB_URL = 'postgresql://twack:twack@localhost/twack'
 
 

@@ -2,9 +2,6 @@
 
 from setuptools import setup
 
-requirements = open('requirements/_base.txt').read().splitlines()
-print(type(requirements[0]))
-
 setup(
     name="Twack",
     version="0.0.0",
@@ -16,6 +13,11 @@ setup(
     url="https://www.github.com/judy2k/twack",
 
     packages=["twacklib"],
-    scripts=['twack'],
-    install_requires=requirements
+    install_requires=[
+        "click>=3.3,<4.0",
+        "psycopg2>=2.5.4",
+        "tweepy>=3.3.0",
+    ],
+    entry_points=dict(console_scripts=['twack=twacklib.cli:main',]),
+    zip_safe=False,
 )

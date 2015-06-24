@@ -1,1 +1,3 @@
--r requirements/_base.txt
+-e .
+nose==1.3.4
+freezegun==0.2.2
